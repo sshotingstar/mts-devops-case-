@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Удаление компонентов решения из кластера (сам кластер не трогаем; для него — make reset).
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 kubectl delete -k logging/ --ignore-not-found
 kubectl delete -k monitoring/ --ignore-not-found

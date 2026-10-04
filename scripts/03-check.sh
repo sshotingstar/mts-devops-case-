@@ -56,7 +56,7 @@ for _ in $(seq 1 12); do
   sleep 5
 done
 TARGETS="$(prom 'targets?state=active' | jq -r '.data.activeTargets[] | select(.labels.namespace=="demo") | "\(.labels.job) \(.labels.pod) \(.health)"')"
-echo "${TARGETS}" | sed 's/^/  target: /'
+while IFS= read -r t; do echo "  target: ${t}"; done <<< "${TARGETS}"
 echo "${TARGETS}" | grep -q ' up$' && pass "Targets приложения в состоянии UP" || fail "Нет UP targets приложения"
 [[ "${UP:-0}" != "0" ]] && pass "Query sum(nginx_up) = ${UP}" || fail "Query nginx_up пустой"
 REQ="$(prom 'query?query=sum(nginx_http_requests_total)' | jq -r '.data.result[0].value[1] // "нет данных"')"
