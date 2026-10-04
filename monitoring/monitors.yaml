@@ -1,0 +1,53 @@
+# Сбор метрик nginx (через nginx-prometheus-exporter) со всех версий приложения
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hello
+  namespace: demo
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hello
+  endpoints:
+    - port: metrics
+      interval: 15s
+---
+# HTTP-метрики Envoy (коды ответов, latency, RPS по backend) из прокси Gateway API
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy-proxy
+  namespace: envoy-gateway-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: proxy
+      app.kubernetes.io/managed-by: envoy-gateway
+  podMetricsEndpoints:
+    - port: metrics
+      path: /stats/prometheus
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: hello-alerts
+  namespace: demo
+spec:
+  groups:
+    - name: hello
+      rules:
+        - alert: HelloNginxDown
+          expr: nginx_up == 0 or absent(nginx_up)
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "nginx демо-приложения недоступен"
+        - alert: GatewayHigh5xxRate
+          expr: sum(rate(envoy_cluster_upstream_rq_xx{envoy_response_code_class="5"}[5m])) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Через Gateway идет более 0.1 rps ответов 5xx"

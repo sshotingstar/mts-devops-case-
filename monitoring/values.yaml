@@ -1,0 +1,53 @@
+# kube-prometheus-stack для одноузлового кластера kubeadm
+fullnameOverride: kps
+
+alertmanager:
+  enabled: false
+
+# На kubeadm эти компоненты слушают метрики только на 127.0.0.1 — отключаем, чтобы не было "мертвых" targets
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+prometheus:
+  prometheusSpec:
+    # Подхватывать ServiceMonitor/PodMonitor/PrometheusRule из любых namespace без release-лейбла
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    retention: 2d
+    resources:
+      requests: {cpu: 100m, memory: 400Mi}
+      limits: {memory: 1Gi}
+
+grafana:
+  admin:
+    # Пароль генерируется скриптом deploy в Secret grafana-admin и не хранится в репозитории
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  service:
+    type: NodePort
+    nodePort: 30300
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: demo
+          orgId: 1
+          folder: Demo
+          type: file
+          disableDeletion: false
+          options:
+            path: /var/lib/grafana/dashboards/demo
+  dashboards:
+    demo:
+      nginx-exporter:
+        gnetId: 12708
+        revision: 1
+        datasource: Prometheus

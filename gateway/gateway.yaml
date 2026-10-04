@@ -1,0 +1,28 @@
+# Gateway с двумя листенерами: HTTP :80 и HTTPS :443 (TLS-терминация на Envoy).
+# Секрет hello-tls создается скриптом deploy (самоподписанный сертификат), в репозитории его нет.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: web
+  namespace: demo
+spec:
+  gatewayClassName: envoy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: hello.local
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: hello-tls
+      allowedRoutes:
+        namespaces:
+          from: Same

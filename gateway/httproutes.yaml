@@ -1,0 +1,57 @@
+# Основной маршрут hello.local:
+#   /        -> hello-v1
+#   /v2      -> hello-v2                (маршрутизация по path, несколько backend)
+#   /canary  -> 80% hello-v1 / 20% hello-v2  (traffic splitting)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hello
+  namespace: demo
+spec:
+  parentRefs:
+    - name: web
+  hostnames:
+    - hello.local
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /v2}
+      backendRefs:
+        - name: hello-v2
+          port: 80
+    - matches:
+        - path: {type: PathPrefix, value: /canary}
+      backendRefs:
+        - name: hello-v1
+          port: 80
+          weight: 80
+        - name: hello-v2
+          port: 80
+          weight: 20
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            add:
+              - name: X-Gateway
+                value: envoy-gateway
+      backendRefs:
+        - name: hello-v1
+          port: 80
+---
+# Маршрутизация по hostname: v2.hello.local целиком уходит на hello-v2 (только HTTP-листенер)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hello-v2-host
+  namespace: demo
+spec:
+  parentRefs:
+    - name: web
+      sectionName: http
+  hostnames:
+    - v2.hello.local
+  rules:
+    - backendRefs:
+        - name: hello-v2
+          port: 80

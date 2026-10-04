@@ -1,0 +1,35 @@
+# Шаблон обрабатывается envsubst при старте контейнера nginx (подставляется только ${APP_VERSION}).
+log_format json_access escape=json
+  '{"time":"$time_iso8601","remote_addr":"$remote_addr","x_forwarded_for":"$http_x_forwarded_for",'
+  '"host":"$host","method":"$request_method","uri":"$request_uri","status":$status,'
+  '"bytes":$body_bytes_sent,"request_time":$request_time,"user_agent":"$http_user_agent",'
+  '"request_id":"$http_x_request_id","app_version":"${APP_VERSION}"}';
+
+server {
+    listen 8080;
+    server_name _;
+
+    access_log /dev/stdout json_access;
+    error_log  /dev/stderr warn;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location / {
+        default_type text/plain;
+        add_header X-App-Version "${APP_VERSION}" always;
+        return 200 "Hello World! (version: ${APP_VERSION}, pod: $hostname)\n";
+    }
+}
+
+# stub_status только для локального экспортера метрик
+server {
+    listen 127.0.0.1:8081;
+    access_log off;
+    location = /stub_status {
+        stub_status;
+    }
+}

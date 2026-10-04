@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: shellcheck scripts/*.sh
+      - name: Install kubeconform
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+      - name: Validate manifests (kustomize build + kubeconform)
+        run: |
+          for d in app gateway monitoring logging; do
+            echo "== $d"
+            kubectl kustomize "$d" | kubeconform -strict -summary -ignore-missing-schemas \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          done
+
+  e2e:
+    # Полный прогон deploy + smoke-тестов на кластере kind (тот же код, что и на kubeadm)
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: ci
+      - name: Deploy
+        run: bash scripts/02-deploy.sh
+      - name: Smoke tests
+        run: bash scripts/03-check.sh
+      - name: Debug on failure
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide
+          kubectl get gateway,httproute -A
+          kubectl -n envoy-gateway-system logs deploy/envoy-gateway --tail=100 || true

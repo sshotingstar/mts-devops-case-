@@ -1,0 +1,3 @@
+# SC1091: внешние source-файлы (/etc/os-release, versions.env) не анализируем
+# SC2015: паттерн "cond && pass || fail" в smoke-тестах используется намеренно
+disable=SC1091,SC2015

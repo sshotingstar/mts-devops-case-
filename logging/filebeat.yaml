@@ -1,0 +1,114 @@
+# Filebeat DaemonSet: читает stdout/stderr контейнеров namespace demo (access/error-логи nginx),
+# обогащает метаданными Kubernetes, разбирает JSON access-лога и отправляет в Elasticsearch.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: filebeat
+  namespace: logging
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: filebeat
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, pods, nodes]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: filebeat
+subjects:
+  - kind: ServiceAccount
+    name: filebeat
+    namespace: logging
+roleRef:
+  kind: ClusterRole
+  name: filebeat
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-config
+  namespace: logging
+data:
+  filebeat.yml: |
+    filebeat.inputs:
+      - type: filestream
+        id: demo-containers
+        paths:
+          - /var/log/containers/*_demo_*.log
+        prospector.scanner.symlinks: true
+        parsers:
+          - container: ~
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: "/var/log/containers/"
+          - decode_json_fields:
+              fields: ["message"]
+              target: "nginx"
+              overwrite_keys: true
+              add_error_key: false
+
+    output.elasticsearch:
+      hosts: ["http://elasticsearch.logging.svc:9200"]
+
+    logging.level: info
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: filebeat
+  namespace: logging
+  labels:
+    app.kubernetes.io/name: filebeat
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: filebeat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: filebeat
+    spec:
+      serviceAccountName: filebeat
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: filebeat
+          image: docker.elastic.co/beats/filebeat:8.15.3
+          args: ["-c", "/etc/filebeat.yml", "-e", "--strict.perms=false"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            runAsUser: 0
+          resources:
+            requests: {cpu: 50m, memory: 100Mi}
+            limits: {memory: 300Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/filebeat.yml, subPath: filebeat.yml, readOnly: true}
+            - {name: data, mountPath: /usr/share/filebeat/data}
+            - {name: varlog, mountPath: /var/log, readOnly: true}
+      volumes:
+        - name: config
+          configMap:
+            name: filebeat-config
+            defaultMode: 0640
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: data
+          hostPath:
+            path: /var/lib/filebeat-data
+            type: DirectoryOrCreate

@@ -1,0 +1,154 @@
+# Две версии приложения (v1 и v2) нужны для демонстрации маршрутизации и traffic splitting в Gateway API.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-v1
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: hello
+    app.kubernetes.io/version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hello
+      app.kubernetes.io/version: v1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hello
+        app.kubernetes.io/version: v1
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          env:
+            - name: APP_VERSION
+              value: v1
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - {name: templates, mountPath: /etc/nginx/templates, readOnly: true}
+            - {name: confd, mountPath: /etc/nginx/conf.d}
+            - {name: tmp, mountPath: /tmp}
+        - name: exporter
+          image: nginx/nginx-prometheus-exporter:1.3.0
+          args: ["--nginx.scrape-uri=http://127.0.0.1:8081/stub_status"]
+          ports:
+            - name: metrics
+              containerPort: 9113
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: templates
+          configMap:
+            name: nginx-template
+        - name: confd
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-v2
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: hello
+    app.kubernetes.io/version: v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hello
+      app.kubernetes.io/version: v2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hello
+        app.kubernetes.io/version: v2
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          env:
+            - name: APP_VERSION
+              value: v2
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - {name: templates, mountPath: /etc/nginx/templates, readOnly: true}
+            - {name: confd, mountPath: /etc/nginx/conf.d}
+            - {name: tmp, mountPath: /tmp}
+        - name: exporter
+          image: nginx/nginx-prometheus-exporter:1.3.0
+          args: ["--nginx.scrape-uri=http://127.0.0.1:8081/stub_status"]
+          ports:
+            - name: metrics
+              containerPort: 9113
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: templates
+          configMap:
+            name: nginx-template
+        - name: confd
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
