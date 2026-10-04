@@ -7,7 +7,7 @@
 ## Быстрый старт
 
 ```bash
-git clone <URL этого репозитория> mts-devops-case
+git clone https://github.com/sshotingstar/mts-devops-case.git mts-devops-case
 cd mts-devops-case
 sudo apt-get update && sudo apt-get install -y make git
 make all        # node -> cluster -> deploy -> check (~15–20 минут)
