@@ -16,7 +16,7 @@ log "1/6 Envoy Gateway ${ENVOY_GATEWAY_VERSION} (вместе с CRD Gateway API
 helm upgrade --install eg oci://docker.io/envoyproxy/gateway-helm \
   --version "${ENVOY_GATEWAY_VERSION}" \
   -n envoy-gateway-system --create-namespace --wait --timeout 10m
-kubectl -n envoy-gateway-system rollout status deployment/envoy-gateway --timeout=300s
+kubectl -n envoy-gateway-system rollout status deployment/envoy-gateway --timeout=900s
 
 log "2/6 kube-prometheus-stack"
 kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
@@ -53,11 +53,11 @@ log "6/6 Логирование: Elasticsearch + Filebeat"
 kubectl apply -k logging/
 
 log "Ожидание готовности"
-kubectl -n demo rollout status deployment/hello-v1 --timeout=300s
-kubectl -n demo rollout status deployment/hello-v2 --timeout=300s
-kubectl -n demo wait gateway/web --for=condition=Programmed --timeout=300s
-kubectl -n logging rollout status deployment/elasticsearch --timeout=600s
-kubectl -n logging rollout status daemonset/filebeat --timeout=300s
+kubectl -n demo rollout status deployment/hello-v1 --timeout=900s
+kubectl -n demo rollout status deployment/hello-v2 --timeout=900s
+kubectl -n demo wait gateway/web --for=condition=Programmed --timeout=900s
+kubectl -n logging rollout status deployment/elasticsearch --timeout=900s
+kubectl -n logging rollout status daemonset/filebeat --timeout=900s
 
 NODE_IP="$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')"
 SVC="$(kubectl -n envoy-gateway-system get svc \

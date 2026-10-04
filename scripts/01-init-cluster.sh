@@ -27,6 +27,6 @@ log "CNI Flannel ${FLANNEL_VERSION}"
 kubectl apply -f "https://github.com/flannel-io/flannel/releases/download/${FLANNEL_VERSION}/kube-flannel.yml"   || kubectl apply -f "https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml"
 
 log "Ожидание готовности узла"
-kubectl wait --for=condition=Ready nodes --all --timeout=300s
-kubectl -n kube-system rollout status deployment/coredns --timeout=300s
+kubectl wait --for=condition=Ready nodes --all --timeout=900s
+kubectl -n kube-system rollout status deployment/coredns --timeout=900s
 kubectl get nodes -o wide
